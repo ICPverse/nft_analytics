@@ -136,6 +136,29 @@ actor class DRC721(_name : Text, _symbol : Text) {
 
     };
 
+    public func onRelist(id: T.TokenId, newPrice: Nat, oldPrice: Nat): async Bool {
+        let _res1 = tokenCurrentPrices.replace(id, newPrice);
+        
+        
+        
+        let historicalPriceOption = tokenHistoricalPrices.get(id);
+        var hist_prices : [(Int, Nat)] = [];
+        switch historicalPriceOption {
+            case null {
+                tokenHistoricalPrices.put(id, Array.make((Time.now(), ?newPrice)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), ?newPrice)));
+                let _res2 = tokenHistoricalPrices.replace(id, newArr);
+            };
+        };
+        
+        
+        
+        marketCap := marketCap + newPrice - oldPrice;
+        return true;
+    };
+
     system func preupgrade() {
         tokenCurrentPriceEntries := Iter.toArray(tokenCurrentPrices.entries());
         tokenHighestSaleEntries := Iter.toArray(tokenHighestSales.entries());
