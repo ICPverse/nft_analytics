@@ -9,7 +9,7 @@ import Time "mo:base/Time";
 import Iter "mo:base/Iter";
 import T "../types/dip721_types";
 
-actor class DRC721(_name : Text, _symbol : Text) {
+actor class IVAC721(_name : Text, _symbol : Text) {
     private stable var tokenPk : Nat = 0;
     private stable var floorPrice: Nat = 0;
     private stable var marketCap: Nat = 0;
@@ -158,6 +158,29 @@ actor class DRC721(_name : Text, _symbol : Text) {
         marketCap := marketCap + newPrice - oldPrice;
         return true;
     };
+
+    public func onGenesis(mintPrice: Nat): async Bool {
+        tokenPk += 1;
+        totalVolume += mintPrice;
+        return true;
+    };
+
+    public func getFloor(): async Nat {
+        return floorPrice;
+    };
+
+    public func getVolume(): async Nat {
+        return totalVolume;
+    };
+
+    public func getMktCap(): async Nat {
+        return marketCap;
+    };
+
+    public func getItemCount(): async Nat {
+        return tokenPk;
+    };
+
 
     system func preupgrade() {
         tokenCurrentPriceEntries := Iter.toArray(tokenCurrentPrices.entries());
