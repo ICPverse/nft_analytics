@@ -2,12 +2,16 @@ import Error "mo:base/Error";
 import Hash "mo:base/Hash";
 import HashMap "mo:base/HashMap";
 import Nat "mo:base/Nat";
+import Int "mo:base/Int";
+import Float "mo:base/Float";
 import Option "mo:base/Option";
 import Principal "mo:base/Principal";
 import Array "mo:base/Array";
+import Buffer "../types/Buffer2";
 import Time "mo:base/Time";
 import Iter "mo:base/Iter";
 import T "../types/dip721_types";
+import Analytics "../types/Analytics";
 
 actor class IVAC721(_name : Text, _symbol : Text) {
     private stable var tokenPk : Nat = 0;
@@ -93,6 +97,9 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         };
         totalVolume += price;
         marketCap -= price;
+
+        reviseFloor();
+        reviseCeiling();
         return true;
 
     };
@@ -130,7 +137,8 @@ actor class IVAC721(_name : Text, _symbol : Text) {
             };
         };
         
-        
+        reviseFloor();
+        reviseCeiling();
         
         return true;
 
@@ -156,7 +164,43 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         
         
         marketCap := marketCap + newPrice - oldPrice;
+        reviseFloor();
+        reviseCeiling();
         return true;
+    };
+
+    private func reviseFloor(): () {
+        var tokenPrices = Iter.toArray(tokenCurrentPrices.entries());
+        var s = tokenPrices.size();
+        if (s == 0) {
+            return;
+        };
+        var tempFloor = tokenPrices[0].1;
+        var i = 1;
+        while (i < s) {
+            if (tempFloor > tokenPrices[i].1) {
+                tempFloor := tokenPrices[i].1;
+            };
+            i += 1;
+        };
+        floorPrice := tempFloor;
+    };
+
+    private func reviseCeiling(): () {
+        var tokenPrices = Iter.toArray(tokenCurrentPrices.entries());
+        var s = tokenPrices.size();
+        if (s == 0) {
+            return;
+        };
+        var tempCeiling = tokenPrices[0].1;
+        var i = 1;
+        while (i < s) {
+            if (tempCeiling < tokenPrices[i].1) {
+                tempCeiling := tokenPrices[i].1;
+            };
+            i += 1;
+        };
+        ceilingPrice := tempCeiling;
     };
 
     public func onGenesis(mintPrice: Nat): async Bool {
@@ -166,7 +210,13 @@ actor class IVAC721(_name : Text, _symbol : Text) {
     };
 
     public func getFloor(): async Nat {
+        reviseFloor();
         return floorPrice;
+    };
+
+    public func getCeiling(): async Nat {
+        reviseCeiling();
+        return ceilingPrice;
     };
 
     public func getVolume(): async Nat {
@@ -179,6 +229,40 @@ actor class IVAC721(_name : Text, _symbol : Text) {
 
     public func getItemCount(): async Nat {
         return tokenPk;
+    };
+
+    public func getMeanPrice(): async ?Float {
+        
+        var priceArr = Iter.toArray(tokenCurrentPrices.entries());
+        var i = 0;
+        var s = priceArr.size();
+        if (s == 0){
+            return null;
+        };
+        var priceFloat  = Buffer.Buffer2<Float>(s);
+        while (i < s) {
+            priceFloat.add(Float.fromInt(priceArr[i].1));
+            i += 1;
+        };
+        var priceArrFloat = Buffer.toArray(priceFloat);
+        return Analytics.mean(priceArrFloat);
+    };
+
+    public func getMedianPrice(): async ?Float {
+        
+        var priceArr = Iter.toArray(tokenCurrentPrices.entries());
+        var i = 0;
+        var s = priceArr.size();
+        if (s == 0){
+            return null;
+        };
+        var priceFloat  = Buffer.Buffer2<Float>(s);
+        while (i < s) {
+            priceFloat.add(Float.fromInt(priceArr[i].1));
+            i += 1;
+        };
+        var priceArrFloat = Buffer.toArray(priceFloat);
+        return Analytics.median(priceArrFloat);
     };
 
 

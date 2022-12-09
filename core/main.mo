@@ -23,6 +23,7 @@ actor class Landing(_owner: Principal) = this{
    
     
     public type DRC721 = Minter.DRC721;
+    public type IVAC721 = IVAC.IVAC721;
 
     public shared({caller}) func requestApproval(collName: Text): async Bool{
         let creator = collections.get(collName);
@@ -81,28 +82,28 @@ actor class Landing(_owner: Principal) = this{
     };
 
 
-    public shared({caller}) func launchCollection(collName: Text, symbol: Text, tags: [Text]): async (?DRC721){
+    public shared({caller}) func launchCollection(collName: Text, symbol: Text, tags: [Text]): async (?DRC721, ?IVAC721){
         let creator = collections.get(collName);
         var creatorId = Principal.fromText("2vxsx-fae");
         switch creator{
             case null{
-                return null;
+                return (null, null);
             };
             case (?principal){
                 creatorId := principal;
                 if (creatorId != caller){
-                    return null;
+                    return (null, null);
                 };
             };
         };
         let status = collectionCanisters.get(collName);
         switch status{
             case null{
-                return null;
+                return (null, null);
             };
             case (?text){
                 if (text != "approved"){
-                    return null;
+                    return (null, null);
                 };
             };
         };
@@ -110,7 +111,7 @@ actor class Landing(_owner: Principal) = this{
         let res = collectionCanisters.replace(collName, Principal.toText(Principal.fromActor(t)));
         let t2 = await IVAC.IVAC721(collName, symbol);
         let res2 = analyticsCanisters.replace(collName, Principal.toText(Principal.fromActor(t2)));
-        return (?t);
+        return (?t, ?t2);
     };
 
     public shared({caller}) func mint(collName: Text, uri: Text, fee: Nat) : async Bool{

@@ -177,18 +177,21 @@ module{
         return product**(1/Float.fromInt(size));
     };
 
-    public func median(arr : [Float]): Float{
+    public func median(arr : [Float]): ?Float{
+        if (arr.size() == 0){
+            return null;
+        };
         var newArr : [var Float] = Array.thaw(arr);
         Array.sortInPlace<Float>(newArr, Float.compare);
         
         if (arr.size() % 2 == 1){
-            return newArr[(arr.size() - 1)/2];
+            return ?newArr[(arr.size() - 1)/2];
         }
         else {
             var x = newArr[(arr.size()/2 - 1)];
             var y = newArr[arr.size()/2];
             
-            return (x + y)/2;
+            return ?((x + y)/2);
         };
 
     };
