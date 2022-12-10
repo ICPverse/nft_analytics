@@ -2,6 +2,7 @@ import Array "mo:base/Array";
 import Nat "mo:base/Nat";
 import Debug "mo:base/Debug";
 import Analytics "../types/Analytics";
+import Option "mo:base/Option";
 import Buffer "../types/Buffer2";
 import Nat32 "mo:base/Nat32";
 import HashMap "mo:base/HashMap";
@@ -116,6 +117,10 @@ actor class Landing(_owner: Principal) = this{
 
     public shared({caller}) func mint(collName: Text, uri: Text, fee: Nat) : async Bool{
         let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None"){
+            return false;
+        };
         var canisterId = "";
         switch status{
             case null{
@@ -139,8 +144,36 @@ actor class Landing(_owner: Principal) = this{
 
         let act2 = actor(canisterId):actor {transferFrom: (Principal, Principal, Nat) -> async ()};
         await act2.transferFrom(Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"), caller, mintedNFT);
-        return true;
+
+        let act3 = actor(analytics_canister):actor {onGenesis: (Nat, Principal) -> async (Bool)};
+        let gen = await act3.onGenesis(fee, caller);
+        return gen;
     };
+
+    public shared({caller}) func listNFT(collName: Text, tid: Nat, price: Nat) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := analytics_canister;
+                };
+            };
+        };
+        let act = actor(canisterId):actor {onRelist: (Principal, Nat, Nat) -> async (Bool)};
+        let res = await act.onRelist(caller, tid, price);
+        return res;
+    }; 
 
     public func ownerOf(collName: Text, tid: Nat): async ?Principal {
         let status = collectionCanisters.get(collName);
@@ -165,6 +198,54 @@ actor class Landing(_owner: Principal) = this{
         let act = actor(canisterId):actor {ownerOf: (Nat) -> async (?Principal)};
         let ownerNFT = await act.ownerOf(tid);
         return ownerNFT;
+    };
+
+    public func getFloor(collName: Text): async Nat {
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return 0;
+        }
+        else {
+            let act = actor(canisterId):actor {getFloor: () -> async (Nat)};
+            let floor = await act.getFloor();
+            return floor;
+        };
+    };
+
+    public func getCeiling(collName: Text): async Nat {
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return 0;
+        }
+        else {
+            let act = actor(canisterId):actor {getCeiling: () -> async (Nat)};
+            let ceil = await act.getCeiling();
+            return ceil;
+        };
+    };
+
+    public func getVolume(collName: Text): async Nat {
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return 0;
+        }
+        else {
+            let act = actor(canisterId):actor {getVolume: () -> async (Nat)};
+            let vol = await act.getVolume();
+            return vol;
+        };
+    };
+
+    public func getMcap(collName: Text): async Nat {
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return 0;
+        }
+        else {
+            let act = actor(canisterId):actor {getMktCap: () -> async (Nat)};
+            let mc = await act.getMktCap();
+            return mc;
+        };
     };
 
     system func preupgrade(){

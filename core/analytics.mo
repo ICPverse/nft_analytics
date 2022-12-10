@@ -48,6 +48,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
     
 
     public func on_sale(id: T.TokenId, price: Nat, newOwner: Principal): async Bool {
+        assert _exists(id);
         let _res1 = tokenCurrentPrices.remove(id);
         let _res2 = tokenLastSales.replace(id, price);
         
@@ -105,6 +106,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
     };
 
     public func on_transfer(id: T.TokenId, newOwner: Principal): async Bool {
+        assert _exists(id);
         let _res1 = tokenCurrentPrices.remove(id);
         switch _res1 {
             case null {};
@@ -144,7 +146,15 @@ actor class IVAC721(_name : Text, _symbol : Text) {
 
     };
 
-    public func onRelist(id: T.TokenId, newPrice: Nat, oldPrice: Nat): async Bool {
+    public shared({caller}) func onRelist(by: Principal, id: T.TokenId, newPrice: Nat): async Bool {
+        assert _exists(id);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
+            return false;
+        };
+
+        var oldPrice = Option.get(tokenCurrentPrices.get(id), 0);
         let _res1 = tokenCurrentPrices.replace(id, newPrice);
         
         
@@ -203,9 +213,20 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         ceilingPrice := tempCeiling;
     };
 
-    public func onGenesis(mintPrice: Nat): async Bool {
+    public func onGenesis(mintPrice: Nat, minter: Principal): async Bool {
         tokenPk += 1;
         totalVolume += mintPrice;
+        let historicalHolderOption = tokenHistoricalHolders.get(tokenPk);
+        var hist_holders : [Principal] = [];
+        switch historicalHolderOption {
+            case null {
+                tokenHistoricalHolders.put(tokenPk, Array.make((Time.now(), minter)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), minter)));
+                let _res2 = tokenHistoricalHolders.replace(tokenPk, newArr);
+            };
+        };
         return true;
     };
 
@@ -263,6 +284,11 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         };
         var priceArrFloat = Buffer.toArray(priceFloat);
         return Analytics.median(priceArrFloat);
+    };
+    
+
+    private func _exists(tokenId : Nat) : Bool {
+        return (tokenPk >= tokenId);
     };
 
 
