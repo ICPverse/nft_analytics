@@ -175,6 +175,81 @@ actor class Landing(_owner: Principal) = this{
         return res;
     }; 
 
+    public shared({caller}) func buyNFT(collName: Text, tid: Nat, price: Nat) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := text;
+                };
+            };
+        };
+
+        let currentOwnerOpt = await ownerOf(collName, tid);
+        var owner = Principal.fromText("2vxsx-fae");
+        switch currentOwnerOpt{
+            case null {
+                return false;
+            };
+            case (?principal){
+                owner := principal;
+            };
+        };
+        let act = actor(analytics_canister):actor {onSale: (Principal, Nat, Nat, Principal) -> async (Bool)};
+        let res = await act.onSale(owner, tid, price, caller);
+        if (not res){
+            return false;
+        };
+        let act2 = actor(canisterId):actor {transferFrom: (Principal, Principal, Nat) -> async ()};
+        let res2 = await act2.transferFrom(owner, caller,tid);
+        return true;
+    }; 
+
+
+    public shared({caller}) func transferNFT(collName: Text, tid: Nat, to: Principal) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := text;
+                };
+            };
+        };
+
+        let act = actor(analytics_canister):actor {onTransfer: (Principal, Nat, Principal) -> async (Bool)};
+        let res = await act.onTransfer(caller, tid, to);
+
+        if (not res){
+            return false;
+        };
+        
+        let act2 = actor(canisterId):actor {transferFrom: (Principal, Principal, Nat) -> async ()};
+        await act2.transferFrom(caller, to, tid);
+        return true;
+    }; 
+
     public func ownerOf(collName: Text, tid: Nat): async ?Principal {
         let status = collectionCanisters.get(collName);
         var canisterId = "";
@@ -246,6 +321,14 @@ actor class Landing(_owner: Principal) = this{
             let mc = await act.getMktCap();
             return mc;
         };
+    };
+
+    public func getAll(collName: Text): async [Nat] {
+        let fl = await getFloor(collName);
+        let cl = await getCeiling(collName);
+        let vol = await getVolume(collName);
+        let mc = await getMcap(collName);
+        return [fl, cl, vol, mc];
     };
 
     system func preupgrade(){

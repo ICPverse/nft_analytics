@@ -47,8 +47,18 @@ actor class IVAC721(_name : Text, _symbol : Text) {
     private let tokenHistoricalHolders : HashMap.HashMap<T.TokenId, [(Int, Principal)]> = HashMap.fromIter<T.TokenId, [(Int, Principal)]>(tokenHistoricalHolderEntries.vals(), 10, Nat.equal, Hash.hash);
     
 
-    public func on_sale(id: T.TokenId, price: Nat, newOwner: Principal): async Bool {
+    public shared({caller}) func onSale(by: Principal, id: T.TokenId, price: Nat, newOwner: Principal): async Bool {
         assert _exists(id);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
+            return false;
+        };
+        let currentPrice = Option.get(tokenCurrentPrices.get(id), 0);
+        if (currentPrice == 0 or currentPrice != price){
+            return false;
+        };
+
         let _res1 = tokenCurrentPrices.remove(id);
         let _res2 = tokenLastSales.replace(id, price);
         
@@ -105,8 +115,14 @@ actor class IVAC721(_name : Text, _symbol : Text) {
 
     };
 
-    public func on_transfer(id: T.TokenId, newOwner: Principal): async Bool {
+    public shared({caller}) func onTransfer(by: Principal, id: T.TokenId, newOwner: Principal): async Bool {
         assert _exists(id);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
+            return false;
+        };
+
         let _res1 = tokenCurrentPrices.remove(id);
         switch _res1 {
             case null {};
@@ -183,6 +199,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         var tokenPrices = Iter.toArray(tokenCurrentPrices.entries());
         var s = tokenPrices.size();
         if (s == 0) {
+            floorPrice := 0;
             return;
         };
         var tempFloor = tokenPrices[0].1;
@@ -200,6 +217,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         var tokenPrices = Iter.toArray(tokenCurrentPrices.entries());
         var s = tokenPrices.size();
         if (s == 0) {
+            ceilingPrice := 0;
             return;
         };
         var tempCeiling = tokenPrices[0].1;

@@ -176,7 +176,7 @@ actor class DRC721(_name : Text, _symbol : Text) {
             };
             case (?principal) {
                 let owner = principal;
-                return spender == owner or _hasApprovedAndSame(tokenId, spender) or _isApprovedForAll(owner, spender);
+                return spender == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai") or spender == owner or _hasApprovedAndSame(tokenId, spender) or _isApprovedForAll(owner, spender);
             };
         };
         
