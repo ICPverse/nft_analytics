@@ -7,6 +7,7 @@ import Buffer "../types/Buffer2";
 import Nat32 "mo:base/Nat32";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
+import Float "mo:base/Float";
 import Text "mo:base/Text";
 import Principal "mo:base/Principal";
 import Minter "DIP721";
@@ -175,6 +176,31 @@ actor class Landing(_owner: Principal) = this{
         return res;
     }; 
 
+    public shared({caller}) func dynamicListNFT(collName: Text, tid: Nat, code: Nat) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := analytics_canister;
+                };
+            };
+        };
+        let act = actor(canisterId):actor {onDynamicRelist: (Principal, Nat, Nat) -> async (Bool)};
+        let res = await act.onDynamicRelist(caller, tid, code);
+        return res;
+    }; 
+
     public shared({caller}) func buyNFT(collName: Text, tid: Nat, price: Nat) : async Bool{
         let status = collectionCanisters.get(collName);
         let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
@@ -208,6 +234,47 @@ actor class Landing(_owner: Principal) = this{
         };
         let act = actor(analytics_canister):actor {onSale: (Principal, Nat, Nat, Principal) -> async (Bool)};
         let res = await act.onSale(owner, tid, price, caller);
+        if (not res){
+            return false;
+        };
+        let act2 = actor(canisterId):actor {transferFrom: (Principal, Principal, Nat) -> async ()};
+        let res2 = await act2.transferFrom(owner, caller,tid);
+        return true;
+    }; 
+
+    public shared({caller}) func dynamicBuyNFT(collName: Text, tid: Nat, price: Nat) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := text;
+                };
+            };
+        };
+
+        let currentOwnerOpt = await ownerOf(collName, tid);
+        var owner = Principal.fromText("2vxsx-fae");
+        switch currentOwnerOpt{
+            case null {
+                return false;
+            };
+            case (?principal){
+                owner := principal;
+            };
+        };
+        let act = actor(analytics_canister):actor {onDynamicSale: (Principal, Nat, Nat, Principal) -> async (Bool)};
+        let res = await act.onDynamicSale(owner, tid, price, caller);
         if (not res){
             return false;
         };
@@ -311,24 +378,24 @@ actor class Landing(_owner: Principal) = this{
         };
     };
 
-    public func getMcap(collName: Text): async Nat {
+    public func getMcap(collName: Text): async Float {
         let canisterId = Option.get(analyticsCanisters.get(collName), "None");
         if (canisterId == "None"){
-            return 0;
+            return 0.0;
         }
         else {
-            let act = actor(canisterId):actor {getMktCap: () -> async (Nat)};
+            let act = actor(canisterId):actor {getMktCap: () -> async (Float)};
             let mc = await act.getMktCap();
             return mc;
         };
     };
 
-    public func getAll(collName: Text): async [Nat] {
+    public func getAll(collName: Text): async [Float] {
         let fl = await getFloor(collName);
         let cl = await getCeiling(collName);
         let vol = await getVolume(collName);
         let mc = await getMcap(collName);
-        return [fl, cl, vol, mc];
+        return [Float.fromInt(fl), Float.fromInt(cl), Float.fromInt(vol), mc];
     };
 
     system func preupgrade(){

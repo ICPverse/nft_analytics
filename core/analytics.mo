@@ -16,26 +16,38 @@ import Analytics "../types/Analytics";
 actor class IVAC721(_name : Text, _symbol : Text) {
     private stable var tokenPk : Nat = 0;
     private stable var floorPrice: Nat = 0;
-    private stable var marketCap: Nat = 0;
+    private stable var marketCap: Float = 0.0;
     private stable var totalVolume: Nat = 0;
     private stable var ceilingPrice: Nat = 0;
 
     private stable var tokenCurrentPriceEntries : [(T.TokenId, Nat)] = [];
-    //Current Prices of all NFTs by Token ID
+    // Current Prices of all NFTs by Token ID
     private stable var tokenHighestSaleEntries : [(T.TokenId, Nat)] = [];
-    //Highest Ever sale of each NFT by Token ID
+    // Highest Ever sale of each NFT by Token ID
     private stable var tokenLastSaleEntries : [(T.TokenId, Nat)] = [];
-    //Record of Last Sale for Each NFT
+    // Record of Last Sale for Each NFT
     private stable var tokenHistoricalPriceEntries : [(T.TokenId, [(Int, ?Nat)])] = [];
-    //Records for Each NFT Price as a Function of Timestamp
+    // Records for Each NFT Price as a Function of Timestamp
     private stable var tokenHistoricalSaleEntries : [(T.TokenId, [(Int, Nat)])] = [];
-    //Records for Each NFT Sale as a Function of Timestamp
+    // Records for Each NFT Sale as a Function of Timestamp
     private stable var tokenAuctionPriceEntries : [(T.TokenId, Nat)] = [];
-    //Auction Quoted Price for Each NFT
+    // Auction Quoted Price for Each NFT
     private stable var tokenAuctionWinEntries : [(T.TokenId, Nat)] = [];
-    //Winner bids for Each NFT Auction
+    // Winner bids for Each NFT Auction
     private stable var tokenHistoricalHolderEntries: [(T.TokenId, [(Int, Principal)])] = [];
-    //Record of All HODLers for Each NFT
+    // Record of All HODLers for Each NFT
+    private stable var dynamicListingEntries: [(T.TokenId, Nat)] = [];
+    // Records for the dynamic Listing status of each NFT in the collection
+    private stable var dynamicAuctionEntries: [(T.TokenId, Nat)] = [];
+    // Records for the dynamic Auction status of each NFT in the collection
+    // Codes pertaining to Dynamic Listing/Auction:
+    /* 
+        0: disabled
+        1: floor price
+        2: mean price
+        3: median price
+        4: ceiling price
+    */
 
     private let tokenCurrentPrices : HashMap.HashMap<T.TokenId, Nat> = HashMap.fromIter<T.TokenId, Nat>(tokenCurrentPriceEntries.vals(), 10, Nat.equal, Hash.hash);
     private let tokenHighestSales : HashMap.HashMap<T.TokenId, Nat> = HashMap.fromIter<T.TokenId, Nat>(tokenHighestSaleEntries.vals(), 10, Nat.equal, Hash.hash);
@@ -45,7 +57,9 @@ actor class IVAC721(_name : Text, _symbol : Text) {
     private let tokenAuctionPrices : HashMap.HashMap<T.TokenId, Nat> = HashMap.fromIter<T.TokenId, Nat>(tokenAuctionPriceEntries.vals(), 10, Nat.equal, Hash.hash);
     private let tokenAuctionWins : HashMap.HashMap<T.TokenId, Nat> = HashMap.fromIter<T.TokenId, Nat>(tokenAuctionWinEntries.vals(), 10, Nat.equal, Hash.hash);
     private let tokenHistoricalHolders : HashMap.HashMap<T.TokenId, [(Int, Principal)]> = HashMap.fromIter<T.TokenId, [(Int, Principal)]>(tokenHistoricalHolderEntries.vals(), 10, Nat.equal, Hash.hash);
-    
+    private let dynamicListings : HashMap.HashMap<T.TokenId, Nat> = HashMap.fromIter<T.TokenId, Nat>(dynamicListingEntries.vals(), 10, Nat.equal, Hash.hash);
+    private let dynamicAuctions : HashMap.HashMap<T.TokenId, Nat> = HashMap.fromIter<T.TokenId, Nat>(dynamicAuctionEntries.vals(), 10, Nat.equal, Hash.hash);
+  
 
     public shared({caller}) func onSale(by: Principal, id: T.TokenId, price: Nat, newOwner: Principal): async Bool {
         assert _exists(id);
@@ -106,8 +120,94 @@ actor class IVAC721(_name : Text, _symbol : Text) {
                 let _res4 = tokenHistoricalSales.replace(id, newArr);
             };
         };
+
+        let _res5 = dynamicAuctions.remove(id);
+        let _res6 = dynamicListings.remove(id);
+
         totalVolume += price;
-        marketCap -= price;
+        marketCap -= Float.fromInt(price);
+
+        reviseFloor();
+        reviseCeiling();
+        return true;
+
+    };
+
+    public shared({caller}) func onDynamicSale(by: Principal, id: T.TokenId, price: Nat, newOwner: Principal): async Bool {
+        assert _exists(id);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
+            return false;
+        };
+        
+        let code = Option.get(dynamicListings.get(id), 0);
+        assert (code != 0);
+
+        let currentPrice: Float = switch code {
+            case 1 Float.fromInt(floorPrice);
+            case 2 Option.get(await getMeanPrice(), 0.00);
+            case 3 Option.get(await getMedianPrice(), 0.0);
+            case 4 Float.fromInt(ceilingPrice);
+            case _ 0.00; 
+        };
+        if (currentPrice == 0.00 or not (currentPrice <= Float.fromInt(price) and currentPrice + 1.00 > Float.fromInt(price))){
+            return false;
+        };
+
+        let _res1 = tokenCurrentPrices.remove(id);
+        let _res2 = tokenLastSales.replace(id, price);
+        
+        let historicalHolderOption = tokenHistoricalHolders.get(id);
+        var hist_holders : [Principal] = [];
+        switch historicalHolderOption {
+            case null {
+                tokenHistoricalHolders.put(id, Array.make((Time.now(), newOwner)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), newOwner)));
+                let _res3 = tokenHistoricalHolders.replace(id, newArr);
+            };
+        };
+        let historicalPriceOption = tokenHistoricalPrices.get(id);
+        var hist_prices : [(Int, Nat)] = [];
+        switch historicalPriceOption {
+            case null {
+                tokenHistoricalPrices.put(id, Array.make((Time.now(), ?price)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), ?price)));
+                let _res4 = tokenHistoricalPrices.replace(id, newArr);
+            };
+        };
+        let highestSaleOption = tokenHighestSales.get(id);
+        switch highestSaleOption {
+            case null {
+                tokenHighestSales.put(id, price);
+            };
+            case (?nat) {
+                if (nat < price) {
+                    let _res5 = tokenLastSales.replace(id, price);
+                };
+            };
+        };
+        let historicalSaleOption = tokenHistoricalSales.get(id);
+        var hist_sales : [(Int, Nat)] = [];
+        switch historicalSaleOption {
+            case null {
+                tokenHistoricalSales.put(id, Array.make((Time.now(), price)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), price)));
+                let _res4 = tokenHistoricalSales.replace(id, newArr);
+            };
+        };
+
+        let _res5 = dynamicAuctions.remove(id);
+        let _res6 = dynamicListings.remove(id);
+
+        totalVolume += price;
+        marketCap -= Float.fromInt(price);
 
         reviseFloor();
         reviseCeiling();
@@ -127,7 +227,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         switch _res1 {
             case null {};
             case (?nat){
-                marketCap -= nat;
+                marketCap -= Float.fromInt(nat);
             };
         };
 
@@ -154,6 +254,9 @@ actor class IVAC721(_name : Text, _symbol : Text) {
                 let _res3 = tokenHistoricalPrices.replace(id, newArr);
             };
         };
+
+        let _res4 = dynamicAuctions.remove(id);
+        let _res5 = dynamicListings.remove(id);
         
         reviseFloor();
         reviseCeiling();
@@ -169,7 +272,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
             return false;
         };
-
+        
         var oldPrice = Option.get(tokenCurrentPrices.get(id), 0);
         let _res1 = tokenCurrentPrices.replace(id, newPrice);
         
@@ -188,8 +291,53 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         };
         
         
+        let _res3 = dynamicAuctions.remove(id);
+        let _res4 = dynamicListings.remove(id);
+        marketCap := marketCap + Float.fromInt(newPrice) - Float.fromInt(oldPrice);
+        reviseFloor();
+        reviseCeiling();
+        return true;
+    };
+
+    public shared({caller}) func onDynamicRelist(by: Principal, id: T.TokenId, code: Nat): async Bool {
+        assert _exists(id);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        assert (code == 1 or code == 2 or code == 3 or code == 4);
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
+            return false;
+        };
         
-        marketCap := marketCap + newPrice - oldPrice;
+        var oldPrice = Option.get(tokenCurrentPrices.get(id), 0);
+        let _res1 = tokenCurrentPrices.remove(id);
+        
+        
+        
+        let historicalPriceOption = tokenHistoricalPrices.get(id);
+        var hist_prices : [(Int, Nat)] = [];
+        switch historicalPriceOption {
+            case null {
+                tokenHistoricalPrices.put(id, Array.make((Time.now(), null)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), null)));
+                let _res2 = tokenHistoricalPrices.replace(id, newArr);
+            };
+        };
+        
+        
+        let _res3 = dynamicAuctions.remove(id);
+        let _res4 = dynamicListings.replace(id, code);
+
+        let newPrice: Float = switch code {
+            case 1 Float.fromInt(floorPrice);
+            case 2 Option.get(await getMeanPrice(), 0.00);
+            case 3 Option.get(await getMedianPrice(), 0.0);
+            case 4 Float.fromInt(ceilingPrice);
+            case _ 0.00; 
+        };
+
+        marketCap := marketCap + newPrice - Float.fromInt(oldPrice);
         reviseFloor();
         reviseCeiling();
         return true;
@@ -262,7 +410,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         return totalVolume;
     };
 
-    public func getMktCap(): async Nat {
+    public func getMktCap(): async Float {
         return marketCap;
     };
 
@@ -319,6 +467,8 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         tokenAuctionPriceEntries := Iter.toArray(tokenAuctionPrices.entries());
         tokenAuctionWinEntries := Iter.toArray(tokenAuctionWins.entries());
         tokenHistoricalHolderEntries := Iter.toArray(tokenHistoricalHolders.entries());
+        dynamicAuctionEntries := Iter.toArray(dynamicAuctions.entries());
+        dynamicListingEntries := Iter.toArray(dynamicListings.entries());
     };
 
     system func postupgrade() {
@@ -330,6 +480,8 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         tokenAuctionPriceEntries := [];
         tokenAuctionWinEntries := [];
         tokenHistoricalHolderEntries := [];
+        dynamicAuctionEntries := [];
+        dynamicListingEntries := [];
     };
     
 };
