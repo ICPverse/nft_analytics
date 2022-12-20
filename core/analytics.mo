@@ -32,7 +32,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
     // Records for Each NFT Sale as a Function of Timestamp
     private stable var tokenAuctionPriceEntries : [(T.TokenId, Nat)] = [];
     // Auction Quoted Price for Each NFT
-    private stable var tokenAuctionWinEntries : [(T.TokenId, Nat)] = [];
+    private stable var tokenAuctionWinningEntries : [(T.TokenId, (Principal, Nat))] = [];
     // Winner bids for Each NFT Auction
     private stable var tokenHistoricalHolderEntries: [(T.TokenId, [(Int, Principal)])] = [];
     // Record of All HODLers for Each NFT
@@ -55,7 +55,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
     private let tokenHistoricalPrices : HashMap.HashMap<T.TokenId, [(Int, ?Nat)]> = HashMap.fromIter<T.TokenId, [(Int, ?Nat)]>(tokenHistoricalPriceEntries.vals(), 10, Nat.equal, Hash.hash);
     private let tokenHistoricalSales : HashMap.HashMap<T.TokenId, [(Int, Nat)]> = HashMap.fromIter<T.TokenId, [(Int, Nat)]>(tokenHistoricalSaleEntries.vals(), 10, Nat.equal, Hash.hash);
     private let tokenAuctionPrices : HashMap.HashMap<T.TokenId, Nat> = HashMap.fromIter<T.TokenId, Nat>(tokenAuctionPriceEntries.vals(), 10, Nat.equal, Hash.hash);
-    private let tokenAuctionWins : HashMap.HashMap<T.TokenId, Nat> = HashMap.fromIter<T.TokenId, Nat>(tokenAuctionWinEntries.vals(), 10, Nat.equal, Hash.hash);
+    private let tokenAuctionWinning : HashMap.HashMap<T.TokenId, (Principal, Nat)> = HashMap.fromIter<T.TokenId, (Principal, Nat)>(tokenAuctionWinningEntries.vals(), 10, Nat.equal, Hash.hash);
     private let tokenHistoricalHolders : HashMap.HashMap<T.TokenId, [(Int, Principal)]> = HashMap.fromIter<T.TokenId, [(Int, Principal)]>(tokenHistoricalHolderEntries.vals(), 10, Nat.equal, Hash.hash);
     private let dynamicListings : HashMap.HashMap<T.TokenId, Nat> = HashMap.fromIter<T.TokenId, Nat>(dynamicListingEntries.vals(), 10, Nat.equal, Hash.hash);
     private let dynamicAuctions : HashMap.HashMap<T.TokenId, Nat> = HashMap.fromIter<T.TokenId, Nat>(dynamicAuctionEntries.vals(), 10, Nat.equal, Hash.hash);
@@ -125,10 +125,11 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         let _res6 = dynamicListings.remove(id);
 
         totalVolume += price;
-        marketCap -= Float.fromInt(price);
-
+        
         reviseFloor();
         reviseCeiling();
+        //marketCap -= Float.fromInt(price);
+        await reviseMcap();
         return true;
 
     };
@@ -207,10 +208,11 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         let _res6 = dynamicListings.remove(id);
 
         totalVolume += price;
-        marketCap -= Float.fromInt(price);
-
+        
         reviseFloor();
         reviseCeiling();
+        //marketCap -= Float.fromInt(price);
+        await reviseMcap();
         return true;
 
     };
@@ -258,9 +260,256 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         let _res4 = dynamicAuctions.remove(id);
         let _res5 = dynamicListings.remove(id);
         
+        
         reviseFloor();
         reviseCeiling();
+        await reviseMcap();
+        return true;
+
+    };
+
+    public shared({caller}) func onAuctionCreate(by: Principal, id: T.TokenId, minPrice: Nat): async Bool {
+        assert _exists(id);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
+            return false;
+        };
+        tokenAuctionPrices.put(id, minPrice);
+        tokenAuctionWinning.put(id, (by, 0));
+        let _res1 = dynamicAuctions.remove(id);
+        let _res2 = dynamicListings.remove(id);
+        return true;
+    };
+
+    public shared({caller}) func onDynamicAuctionCreate(by: Principal, id: T.TokenId, code: Nat): async Bool {
+        assert _exists(id);
+        assert (code == 1 or code == 2 or code == 3 or code == 4);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
+            return false;
+        };
+        let _res1 = dynamicAuctions.replace(id, code);
+        let _res2 = tokenAuctionPrices.remove(id);
+        tokenAuctionWinning.put(id, (by, 0));
+        let _res3 = dynamicListings.remove(id);
+        return true;
+    };
+
+    public shared({caller}) func onAuctionApply(by: Principal, id: T.TokenId, quotePrice: Nat): async Bool {
+        assert _exists(id);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        let minPrice = Option.get(tokenAuctionPrices.get(id), 0);
+        assert (minPrice != 0);
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 == by){
+            return false;
+        };
+        let currentNominee = Option.get(tokenAuctionWinning.get(id), (Principal.fromText("2vxsx-fae"), 0));
+        if (currentNominee.0 == Principal.fromText("2vxsx-fae")){
+            return false;
+        }
+        else if (currentNominee.1 < quotePrice and quotePrice > minPrice) {
+            tokenAuctionWinning.put(id, (by, quotePrice));
+        };
         
+        await reviseMcap();
+        return (quotePrice > minPrice);
+    };
+
+    public shared({caller}) func onDynamicAuctionApply(by: Principal, id: T.TokenId, quotePrice: Nat): async Bool {
+        assert _exists(id);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        let code = Option.get(dynamicAuctions.get(id), 0);
+        assert (code != 0);
+        let minPrice: Float = switch code {
+            case 1 Float.fromInt(floorPrice);
+            case 2 Option.get(await getMeanPrice(), 0.00);
+            case 3 Option.get(await getMedianPrice(), 0.0);
+            case 4 Float.fromInt(ceilingPrice);
+            case _ 0.00; 
+        };
+        assert (minPrice != 0.0);
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 == by){
+            return false;
+        };
+        let currentNominee = Option.get(tokenAuctionWinning.get(id), (Principal.fromText("2vxsx-fae"), 0));
+        if (currentNominee.0 == Principal.fromText("2vxsx-fae")){
+            return false;
+        }
+        else if (currentNominee.1 < quotePrice and Float.fromInt(quotePrice) > minPrice) {
+            tokenAuctionWinning.put(id, (by, quotePrice));
+        };
+        
+        await reviseMcap();
+        return (Float.fromInt(quotePrice) > minPrice);
+    };
+
+    public shared({caller}) func onAuctionEnd(by: Principal, id: T.TokenId): async Bool {
+        assert _exists(id);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
+            return false;
+        };
+        let minPrice = Option.get(tokenAuctionPrices.get(id), 0);
+        let winner = Option.get(tokenAuctionWinning.get(id), (Principal.fromText("2vxsx-fae"), 0));
+        if (winner.1 == 0 or minPrice == 0){
+            return false;
+        };
+        assert (winner.1 > minPrice);
+        
+
+        let _res1 = tokenCurrentPrices.remove(id);
+        let _res2 = tokenLastSales.replace(id, winner.1);
+        
+        let historicalHolderOption = tokenHistoricalHolders.get(id);
+        var hist_holders : [Principal] = [];
+        switch historicalHolderOption {
+            case null {
+                tokenHistoricalHolders.put(id, Array.make((Time.now(), winner.0)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), winner.0)));
+                let _res3 = tokenHistoricalHolders.replace(id, newArr);
+            };
+        };
+        let historicalPriceOption = tokenHistoricalPrices.get(id);
+        var hist_prices : [(Int, Nat)] = [];
+        switch historicalPriceOption {
+            case null {
+                tokenHistoricalPrices.put(id, Array.make((Time.now(), ?winner.1)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), ?winner.1)));
+                let _res4 = tokenHistoricalPrices.replace(id, newArr);
+            };
+        };
+        let highestSaleOption = tokenHighestSales.get(id);
+        switch highestSaleOption {
+            case null {
+                tokenHighestSales.put(id, winner.1);
+            };
+            case (?nat) {
+                if (nat < winner.1) {
+                    let _res5 = tokenLastSales.replace(id, winner.1);
+                };
+            };
+        };
+        let historicalSaleOption = tokenHistoricalSales.get(id);
+        var hist_sales : [(Int, Nat)] = [];
+        switch historicalSaleOption {
+            case null {
+                tokenHistoricalSales.put(id, Array.make((Time.now(), winner.1)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), winner.1)));
+                let _res4 = tokenHistoricalSales.replace(id, newArr);
+            };
+        };
+
+        let _res5 = dynamicAuctions.remove(id);
+        let _res6 = dynamicListings.remove(id);
+        let _res7 = tokenAuctionPrices.remove(id);
+        let _res8 = tokenAuctionWinning.remove(id);
+
+        totalVolume += winner.1;
+        
+        
+        reviseFloor();
+        reviseCeiling();
+        await reviseMcap();
+        return true;
+
+    };
+
+    public shared({caller}) func onDynamicAuctionEnd(by: Principal, id: T.TokenId): async Bool {
+        assert _exists(id);
+        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
+        if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
+            return false;
+        };
+
+        let code = Option.get(dynamicAuctions.get(id), 0);
+        assert (code != 0);
+        let minPrice: Float = switch code {
+            case 1 Float.fromInt(floorPrice);
+            case 2 Option.get(await getMeanPrice(), 0.00);
+            case 3 Option.get(await getMedianPrice(), 0.0);
+            case 4 Float.fromInt(ceilingPrice);
+            case _ 0.00; 
+        };
+        assert (minPrice != 0.0);
+        
+        let winner = Option.get(tokenAuctionWinning.get(id), (Principal.fromText("2vxsx-fae"), 0));
+        if (winner.1 == 0 or minPrice == 0){
+            return false;
+        };
+        assert (Float.fromInt(winner.1) > minPrice);
+        
+
+        let _res1 = tokenCurrentPrices.remove(id);
+        let _res2 = tokenLastSales.replace(id, winner.1);
+        
+        let historicalHolderOption = tokenHistoricalHolders.get(id);
+        var hist_holders : [Principal] = [];
+        switch historicalHolderOption {
+            case null {
+                tokenHistoricalHolders.put(id, Array.make((Time.now(), winner.0)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), winner.0)));
+                let _res3 = tokenHistoricalHolders.replace(id, newArr);
+            };
+        };
+        let historicalPriceOption = tokenHistoricalPrices.get(id);
+        var hist_prices : [(Int, Nat)] = [];
+        switch historicalPriceOption {
+            case null {
+                tokenHistoricalPrices.put(id, Array.make((Time.now(), ?winner.1)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), ?winner.1)));
+                let _res4 = tokenHistoricalPrices.replace(id, newArr);
+            };
+        };
+        let highestSaleOption = tokenHighestSales.get(id);
+        switch highestSaleOption {
+            case null {
+                tokenHighestSales.put(id, winner.1);
+            };
+            case (?nat) {
+                if (nat < winner.1) {
+                    let _res5 = tokenLastSales.replace(id, winner.1);
+                };
+            };
+        };
+        let historicalSaleOption = tokenHistoricalSales.get(id);
+        var hist_sales : [(Int, Nat)] = [];
+        switch historicalSaleOption {
+            case null {
+                tokenHistoricalSales.put(id, Array.make((Time.now(), winner.1)));
+            };
+            case (?arr) {
+                var newArr = Array.append(arr, Array.make((Time.now(), winner.1)));
+                let _res4 = tokenHistoricalSales.replace(id, newArr);
+            };
+        };
+
+        let _res5 = dynamicAuctions.remove(id);
+        let _res6 = dynamicListings.remove(id);
+        let _res7 = tokenAuctionPrices.remove(id);
+        let _res8 = tokenAuctionWinning.remove(id);
+
+        totalVolume += winner.1;
+        
+        
+        reviseFloor();
+        reviseCeiling();
+        await reviseMcap();
         return true;
 
     };
@@ -293,9 +542,11 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         
         let _res3 = dynamicAuctions.remove(id);
         let _res4 = dynamicListings.remove(id);
-        marketCap := marketCap + Float.fromInt(newPrice) - Float.fromInt(oldPrice);
+        
         reviseFloor();
         reviseCeiling();
+        //marketCap := marketCap + Float.fromInt(newPrice) - Float.fromInt(oldPrice);
+        await reviseMcap();
         return true;
     };
 
@@ -337,10 +588,48 @@ actor class IVAC721(_name : Text, _symbol : Text) {
             case _ 0.00; 
         };
 
-        marketCap := marketCap + newPrice - Float.fromInt(oldPrice);
+        
         reviseFloor();
         reviseCeiling();
+        //marketCap := marketCap + newPrice - Float.fromInt(oldPrice);
+        await reviseMcap();
         return true;
+    };
+
+    private func reviseMcap(): async () {
+        
+        var tokenPrices = Iter.toArray(tokenCurrentPrices.entries());
+        var s = tokenPrices.size();
+        if (s == 0) {
+            marketCap := 0.00;
+            return;
+        };
+        var tempMc = Float.fromInt(tokenPrices[0].1);
+        var i = 1;
+        while (i < s) {
+            tempMc += Float.fromInt(tokenPrices[i].1);
+            i += 1;
+        };
+        var dynamicListingArr = Iter.toArray(dynamicListings.entries());
+        let s2 = dynamicListingArr.size();
+        i := 0;
+        let meanPrice = Option.get(await getMeanPrice(), 0.00);
+        let medPrice = Option.get(await getMedianPrice(), 0.00);
+        while (i < s2) {
+            var code = dynamicListingArr[i].1;
+            var el: Float = switch code {
+                case 1 Float.fromInt(floorPrice);
+                case 2 meanPrice;
+                case 3 medPrice;
+                case 4 Float.fromInt(ceilingPrice);
+                case _ 0.00; 
+            };
+            tempMc += el;
+            i += 1;
+        };
+
+        marketCap := tempMc;
+
     };
 
     private func reviseFloor(): () {
@@ -465,7 +754,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         tokenHistoricalPriceEntries := Iter.toArray(tokenHistoricalPrices.entries());
         tokenHistoricalSaleEntries := Iter.toArray(tokenHistoricalSales.entries());
         tokenAuctionPriceEntries := Iter.toArray(tokenAuctionPrices.entries());
-        tokenAuctionWinEntries := Iter.toArray(tokenAuctionWins.entries());
+        tokenAuctionWinningEntries := Iter.toArray(tokenAuctionWinning.entries());
         tokenHistoricalHolderEntries := Iter.toArray(tokenHistoricalHolders.entries());
         dynamicAuctionEntries := Iter.toArray(dynamicAuctions.entries());
         dynamicListingEntries := Iter.toArray(dynamicListings.entries());
@@ -478,7 +767,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         tokenHistoricalPriceEntries := [];
         tokenHistoricalSaleEntries:= [];
         tokenAuctionPriceEntries := [];
-        tokenAuctionWinEntries := [];
+        tokenAuctionWinningEntries := [];
         tokenHistoricalHolderEntries := [];
         dynamicAuctionEntries := [];
         dynamicListingEntries := [];

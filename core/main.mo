@@ -201,6 +201,156 @@ actor class Landing(_owner: Principal) = this{
         return res;
     }; 
 
+    public shared({caller}) func auctionNFTstart(collName: Text, tid: Nat, minPrice: Nat) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := analytics_canister;
+                };
+            };
+        };
+        let act = actor(canisterId):actor {onAuctionCreate: (Principal, Nat, Nat) -> async (Bool)};
+        let res = await act.onAuctionCreate(caller, tid, minPrice);
+        return res;
+    }; 
+
+    public shared({caller}) func dynamicAuctionNFTstart(collName: Text, tid: Nat, code: Nat) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := analytics_canister;
+                };
+            };
+        };
+        let act = actor(canisterId):actor {onDynamicAuctionCreate: (Principal, Nat, Nat) -> async (Bool)};
+        let res = await act.onDynamicAuctionCreate(caller, tid, code);
+        return res;
+    }; 
+
+    public shared({caller}) func auctionNFTapply(collName: Text, tid: Nat, quotePrice: Nat) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := analytics_canister;
+                };
+            };
+        };
+        let act = actor(canisterId):actor {onAuctionApply: (Principal, Nat, Nat) -> async (Bool)};
+        let res = await act.onAuctionApply(caller, tid, quotePrice);
+        return res;
+    }; 
+
+    public shared({caller}) func dynamicAuctionNFTapply(collName: Text, tid: Nat, quotePrice: Nat) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := analytics_canister;
+                };
+            };
+        };
+        let act = actor(canisterId):actor {onDynamicAuctionApply: (Principal, Nat, Nat) -> async (Bool)};
+        let res = await act.onDynamicAuctionApply(caller, tid, quotePrice);
+        return res;
+    }; 
+
+    public shared({caller}) func auctionNFTend(collName: Text, tid: Nat) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := analytics_canister;
+                };
+            };
+        };
+        let act = actor(canisterId):actor {onAuctionEnd: (Principal, Nat) -> async (Bool)};
+        let res = await act.onAuctionEnd(caller, tid);
+        return res;
+    }; 
+
+    public shared({caller}) func dynamicAuctionNFTend(collName: Text, tid: Nat) : async Bool{
+        let status = collectionCanisters.get(collName);
+        let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
+        if (analytics_canister == "None") {
+            return false;
+        };
+        var canisterId = "";
+        switch status{
+            case null{
+                return false;
+            };
+            case (?text){
+                if (text == "pending" or text == "approved"){
+                    return false;
+                }
+                else {
+                    canisterId := analytics_canister;
+                };
+            };
+        };
+        let act = actor(canisterId):actor {onDynamicAuctionEnd: (Principal, Nat) -> async (Bool)};
+        let res = await act.onDynamicAuctionEnd(caller, tid);
+        return res;
+    }; 
+
     public shared({caller}) func buyNFT(collName: Text, tid: Nat, price: Nat) : async Bool{
         let status = collectionCanisters.get(collName);
         let analytics_canister = Option.get(analyticsCanisters.get(collName), "None");
