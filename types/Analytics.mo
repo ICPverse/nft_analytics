@@ -6,6 +6,12 @@ import Nat64 "mo:base/Float";
 import Debug "mo:base/Debug";
 import Nat32 "mo:base/Nat32";
 import Buffer "Buffer2";
+import Random "mo:base/Random";
+import Time "mo:base/Time";
+import Text "mo:base/Text";
+import Iter "mo:base/Iter";
+import Option "mo:base/Option";
+import Nat8 "mo:base/Nat8";
 
 module{
 
@@ -18,6 +24,73 @@ module{
             
         };
         return sum;
+    };
+
+
+    // This function is a simple way of getting a random natural number between 0 and SCOPE
+    // Since it uses the Time.now() method as well and maps the repeated remainders to
+    // arbitrary string sequences, apparent randomness is high. However, since epoch values 
+    // are in a way, deterministic, this isn't true/quantum randomness. However, it should be 
+    // usable for most practical purposes.   
+    // The buffer is mainly to add another layer of entropy. Any buffer that serves no added
+    // purpose will suffice.
+    public func Rand2(scope: Nat8, b: Buffer.Buffer2<Nat>): Nat {
+        var t = Time.now();
+        b.add(10);
+        var div : Int = 10;
+        var bsize  : Int = b.size();
+        t += bsize;
+        var res = "";
+        var i = 1;
+        while (t >= div){
+            let remainder = t % (div);
+            switch remainder {
+                case 0 {
+                    res := res # substring("a0ZKlN0o", i);
+                };
+                case 1 {
+                    res := res # substring("b1YJmO9p", i);
+                };
+                case 2 {
+                    res := res # substring("c2XInP8q", i);
+                };
+                case 3 {
+                    res := res # substring("d3WHoQ7r", i);
+                };
+                case 4 {
+                    res := res # substring("e4VGpR6s", i);
+                };
+                case 5 {
+                    res := res # substring("f5UFqS5t", i);
+                };
+                case 6 {
+                    res := res # substring("g6TErT4u", i);
+                };
+                case 7 {
+                    res := res # substring("h7SDsU3v", i);
+                };
+                case 8 {
+                    res := res # substring("i8RCtV2w", i);
+                };
+                case 9 {
+                    res := res # substring("j9QBuW1x", i);
+                };
+                case _{
+                    res := res # substring("zPAvX0y", i);
+                };
+                
+            };
+            i += 1;
+            t /= div;
+            
+            
+        };
+        
+        
+        let rand = Random.Finite(Text.encodeUtf8(res));
+        let _res = rand.range(scope);
+        let _val = Option.get(_res, Nat8.toNat(scope/2));
+        return _val % Nat8.toNat(scope);
     };
 
     public func cos(x: Float): Float {
@@ -208,9 +281,9 @@ module{
 
     };
 
-    public func geometricMean(arr : [Float]): Float{
+    public func geometricMean(arr : [Float]): ?Float{
         if (arr.size() == 0){
-            return 0.000;
+            return null;
         };
         var product : Float = 1.0;
         for (item in arr.vals()){
@@ -218,7 +291,24 @@ module{
         };
         let size : Int = arr.size();
         
-        return product**(1/Float.fromInt(size));
+        return ?(product**(1/Float.fromInt(size)));
+    };
+
+    public func harmonicMean(arr: [Float]): ?Float {
+        if (arr.size() == 0) {
+            return null;
+        };
+        var inv_sum : Float = 0.00;
+        for (item in arr.vals()){
+            if (item == 0.00){
+                return null;
+            }
+            else {
+                inv_sum += 1 / item;
+            };
+        };
+        var inv_mean : Float = inv_sum / Float.fromInt(arr.size());
+        return ?(1 / inv_mean);
     };
 
     public func median(arr : [Float]): ?Float{
@@ -229,7 +319,7 @@ module{
         Array.sortInPlace<Float>(newArr, Float.compare);
         
         if (arr.size() % 2 == 1){
-            return ?newArr[(arr.size() - 1)/2];
+            return ?(newArr[(arr.size() - 1)/2]);
         }
         else {
             var x = newArr[(arr.size()/2 - 1)];
@@ -319,6 +409,230 @@ module{
         };
     };
 
+    public func arithmeticProgression(term1: Float, cd: Float, n: Nat): [Float]{
+        var res: [Float] = [];
+        var i = 0;
+        while (i < n){
+            res := Array.append(res, [(term1 + Float.fromInt(i)*cd)]);
+            i += 1;
+        };
+        return res;
+    };
+
+    public func geometricProgression(term1: Float, cr: Float, n: Nat): [Float]{
+        var res: [Float] = [];
+        var i = 0;
+        while (i < n){
+            res := Array.append(res, [(term1 * cr**(Float.fromInt(i)))]);
+            i += 1;
+        };
+        return res;
+    };
+
+    public func arithmeticoGeometricProgression(term1: Float, cd: Float, cr: Float, n: Nat): [Float]{
+        var res: [Float] = [];
+        var i = 0;
+        while (i < n){
+            res := Array.append(res, [((term1 + Float.fromInt(i)*cd) * cr**(Float.fromInt(i)))]);
+            i += 1;
+        };
+        return res;
+    };
+
+    public func normalize(arr: [Float]): ?[Float]{
+        var size = arr.size();
+        var res: [Float] = [];
+        if (size == 0){
+            return ?res;
+        };
+        var min: Float = arr[0];
+        var max: Float = arr[0];
+        var i = 1;
+        while (i < size){
+            if (max < arr[i]){
+                max := arr[i];
+            };
+            if (min > arr[i]){
+                min := arr[i];
+            };
+            i += 1;
+        } ;
+        if (max == min){
+            return null;
+        };
+        i := 0;
+        while (i < size){
+            res := Array.append(res, [(arr[i] - min)/(max - min)]);
+            i += 1;
+        };
+        return ?res;
+    };
+
+    public func zNormalize(arr: [Float]): ?[Float]{
+        let size : Int = arr.size();
+        var res : [Float] = [];
+        if (size == 0){
+            return ?res;
+        };
+        var sum : Float = 0.0;
+        for (item in arr.vals()){
+            sum += item;
+        };
+        let mean = (Float.div(sum,Float.fromInt(size)));
+        var sum2 : Float = 0.0;
+        for (item in arr.vals()){
+            sum2 += (item - mean)**2;
+        };
+        var sd = ((Float.div(sum2, Float.fromInt(size)))**0.5) ;
+        if (sd == 0){
+            return null;
+        };
+        var i = 0;
+        while (i < size){
+            res := Array.append(res, [(arr[i] - mean)/sd]);
+            i += 1;
+        };
+        return ?res;
+        
+    };
+
+    public func clipNormalize(arr: [Float], range: Nat): ?[Float]{
+        let size : Int = arr.size();
+        var res : [Float] = [];
+        if (size == 0){
+            return ?res;
+        };
+        if (range > 100 or range == 0){
+            return null;
+        };
+        var sum : Float = 0.0;
+        for (item in arr.vals()){
+            sum += item;
+        };
+        let mean = (Float.div(sum,Float.fromInt(size)));
+        let min = mean - mean * Float.div(Float.fromInt(range), 100.00);
+        let max = mean + mean * Float.div(Float.fromInt(range), 100.00);
+        var i = 0;
+        var el : Float = 0.00;
+        while (i < size){
+            el := arr[i];
+            if (arr[i] > max){
+                el := max;
+            };
+            if (arr[i] < min){
+                el := min;
+            };
+            res := Array.append(res, [el]);
+            i += 1;
+        };
+        return ?res;
+        
+    };
+
+    public func bucket(arr: [Float], n: Nat): ?[var Float]{
+        var res: [var Float] = Array.thaw([]);
+        let size = arr.size();
+        if (size == 0){
+            return ?res;
+        };
+        if (n == 0 or n == 1){
+            return null;
+        };
+        var min: Float = arr[0];
+        var max: Float = arr[0];
+        var i = 1;
+        while (i < size){
+            if (max < arr[i]){
+                max := arr[i];
+            };
+            if (min > arr[i]){
+                min := arr[i];
+            };
+            i += 1;
+        } ;
+        if (max == min){
+            return null;
+        };
+        let interval : Float = (max - min)/Float.fromInt(n);
+        i := 0;
+        while (i < n){
+            res := Array.thaw(Array.append(Array.freeze(res), [0.00]));
+            i += 1;
+        };
+        i := 1;
+        for (item in arr.vals()){
+            while (min + Float.fromInt(i)* interval < item){
+                i += 1;
+            };
+            Debug.print(debug_show i);
+            res[i-1] := res[i-1] + 1.0;
+            i := 1;
+        };
+        return ?res;
+
+
+    };
+
+    public func predict_next(arr: [Float], recency_factor: Float): ?Float {
+        if (recency_factor >= 1.0 or recency_factor <= 0.0){
+            return null;
+        };
+        if (arr.size() == 0){
+            return null;
+        };
+        var isStrictlyIncreasing = true;
+        var isStrictlyDecreasing = true;
+        if (arr.size() == 1){
+            isStrictlyDecreasing := false;
+            isStrictlyIncreasing := false;
+        };
+        var i = 1;
+        while (i < arr.size()){
+            if (arr[i - 1] > arr[i]){
+                isStrictlyIncreasing := false;
+            };
+            if (arr[i - 1] < arr[i]){
+                isStrictlyDecreasing := false;
+            };
+            i += 1;
+        };
+        var sum: Float = 0.00;
+        var div: Float = 0.00;
+        i := 1;
+
+        if (isStrictlyIncreasing){
+            while ( i < arr.size()){
+                sum +=  (arr[i] - arr[i - 1]) * Float.pow(1.00 + recency_factor, Float.fromInt(i));
+                div += Float.pow(1.00 + recency_factor, Float.fromInt(i));
+                i += 1;
+            };
+            return ?(arr[arr.size() - 1] + sum/div);
+            
+        };
+
+        if (isStrictlyDecreasing){
+            while ( i < arr.size()){
+                sum +=  (arr[i] - arr[i - 1]) * Float.pow(1.00 + recency_factor, Float.fromInt(i));
+                div += Float.pow(1.00 + recency_factor, Float.fromInt(i));
+                i += 1;
+            };
+            return ?(arr[arr.size() - 1] - sum/div);
+            
+        };
+        
+        sum := 0.00;
+        div := 0.00;
+        i := 0;
+        
+        while (i < arr.size()){
+            sum += (arr[i] * Float.pow(1.00 + recency_factor, Float.fromInt(i)));
+            div += Float.pow(1.00 + recency_factor, Float.fromInt(i));
+            i += 1;
+        };
+        return ?(sum/div);
+
+    };
+
     public func correlation(arr1: [Float], arr2: [Float]): ?Float{
         if (arr1.size() != arr2.size()){
             return null;
@@ -360,26 +674,6 @@ module{
         else {
             return ?(num/den);
         };
-    };
-
-    public func arithmeticProgression(term1: Float, cd: Float, n: Nat): [Float]{
-        var res: [Float] = [];
-        var i = 0;
-        while (i < n){
-            res := Array.append(res, [(term1 + Float.fromInt(i)*cd)]);
-            i += 1;
-        };
-        return res;
-    };
-
-    public func geometricProgression(term1: Float, cr: Float, n: Nat): [Float]{
-        var res: [Float] = [];
-        var i = 0;
-        while (i < n){
-            res := Array.append(res, [(term1 * cr**(Float.fromInt(i)))]);
-            i += 1;
-        };
-        return res;
     };
 
     public func linearRegression(arr1: [Float], arr2: [Float]): ?(Float, Float){
@@ -603,6 +897,20 @@ module{
             N <<= 1;
         };
         return ?buffer;
+    };
+
+    func substring(t: Text, size: Nat): Text {
+        if (size == 0){
+            return "";
+        };
+        var i = 0;
+        var res = "";
+        var arr = Iter.toArray(t.chars());
+        while (i < t.size() and i < size){
+            res := res # Text.fromChar(arr[i]);
+            i += 1;
+        };
+        return res;
     };
 
 };

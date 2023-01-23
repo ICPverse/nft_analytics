@@ -492,6 +492,118 @@ actor class Landing(_owner: Principal) = this{
         return ownerNFT;
     };
 
+    public func getMeanPrice(collName: Text): async ?Float{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return null;
+        }
+        else {
+            let act = actor(canisterId):actor {getMeanPrice: () -> async (?Float)};
+            let mean = await act.getMeanPrice();
+            return mean;
+        };
+    };
+
+    public func getMedianPrice(collName: Text): async ?Float{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return null;
+        }
+        else {
+            let act = actor(canisterId):actor {getMedianPrice: () -> async (?Float)};
+            let med = await act.getMedianPrice();
+            return med;
+        };
+    };
+
+    public func getModalPrice(collName: Text): async ?Float{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return null;
+        }
+        else {
+            let act = actor(canisterId):actor {getModalPrice: () -> async (?Float)};
+            let mod = await act.getModalPrice();
+            return mod;
+        };
+    };
+
+    public func getPriceDeviation(collName: Text): async ?Float{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return null;
+        }
+        else {
+            let act = actor(canisterId):actor {getStandardDeviation: () -> async (?Float)};
+            let sd = await act.getStandardDeviation();
+            return sd;
+        };
+    };
+
+    public func getHighestEverSale(collName: Text): async [Nat]{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return [];
+        }
+        else {
+            Debug.print("hi");
+            let act = actor(canisterId):actor {highestEverSale: () -> async [Nat]};
+            Debug.print("hi again");
+            let hes = await act.highestEverSale();
+            Debug.print("one last hi");
+            return hes;
+        };
+        
+    };
+
+    public func getSalesProfile(collName: Text, tokenId: Nat): async [(Int, Nat)]{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return [];
+        }
+        else {
+            let act = actor(canisterId):actor {getSalesProfile: (Nat) -> async ([(Int, Nat)])};
+            let sp = await act.getSalesProfile(tokenId);
+            return sp;
+        };
+    };
+
+    public func getHolderProfile(collName: Text, tokenId: Nat): async [(Int, Principal)]{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return [];
+        }
+        else {
+            let act = actor(canisterId):actor {getHolderProfile: (Nat) -> async ([(Int, Principal)])};
+            let hp = await act.getHolderProfile(tokenId);
+            return hp;
+        };
+    };
+
+    public func getTokenProfile(collName: Text, tokenId: Nat): async [Text]{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return [];
+        }
+        else {
+            let act = actor(canisterId):actor {getTokenProfile: (Nat) -> async ([Text])};
+            let tp = await act.getTokenProfile(tokenId);
+            return tp;
+        };
+    };
+                
+    public func nextSalePredictor(collName: Text, tokenId: Nat): async ?Float{
+       let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return null;
+        }
+        else {
+            let act = actor(canisterId):actor {nextSalePredictor: (Nat) -> async (?Float)};
+            let nsp = await act.nextSalePredictor(tokenId);
+            return nsp;
+        };
+    };
+
     public func getFloor(collName: Text): async Nat {
         let canisterId = Option.get(analyticsCanisters.get(collName), "None");
         if (canisterId == "None"){

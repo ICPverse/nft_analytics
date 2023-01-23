@@ -9,6 +9,7 @@ import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Buffer "../types/Buffer2";
 import Time "mo:base/Time";
+import Debug "mo:base/Debug";
 import Iter "mo:base/Iter";
 import T "../types/dip721_types";
 import Analytics "../types/Analytics";
@@ -63,7 +64,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
 
     public shared({caller}) func onSale(by: Principal, id: T.TokenId, price: Nat, newOwner: Principal): async Bool {
         assert _exists(id);
-        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        //assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
         let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
         if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
             return false;
@@ -105,7 +106,9 @@ actor class IVAC721(_name : Text, _symbol : Text) {
             };
             case (?nat) {
                 if (nat < price) {
-                    let _res5 = tokenLastSales.replace(id, price);
+                    Debug.print(debug_show nat);
+                    Debug.print(debug_show price);
+                    let _res5 = tokenHighestSales.replace(id, price);
                 };
             };
         };
@@ -188,7 +191,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
             };
             case (?nat) {
                 if (nat < price) {
-                    let _res5 = tokenLastSales.replace(id, price);
+                    let _res5 = tokenHighestSales.replace(id, price);
                 };
             };
         };
@@ -394,7 +397,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
             };
             case (?nat) {
                 if (nat < winner.1) {
-                    let _res5 = tokenLastSales.replace(id, winner.1);
+                    let _res5 = tokenHighestSales.replace(id, winner.1);
                 };
             };
         };
@@ -483,7 +486,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
             };
             case (?nat) {
                 if (nat < winner.1) {
-                    let _res5 = tokenLastSales.replace(id, winner.1);
+                    let _res5 = tokenHighestSales.replace(id, winner.1);
                 };
             };
         };
@@ -516,7 +519,7 @@ actor class IVAC721(_name : Text, _symbol : Text) {
 
     public shared({caller}) func onRelist(by: Principal, id: T.TokenId, newPrice: Nat): async Bool {
         assert _exists(id);
-        assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
+        //assert (caller == Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai"));
         let historicalHolders = Option.get(tokenHistoricalHolders.get(id), []);
         if (historicalHolders.size() == 0 or historicalHolders[historicalHolders.size() - 1].1 != by){
             return false;
@@ -739,6 +742,116 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         };
         var priceArrFloat = Buffer.toArray(priceFloat);
         return Analytics.median(priceArrFloat);
+    };
+
+    public func getModalPrice(): async ?Float {
+        
+        var priceArr = Iter.toArray(tokenCurrentPrices.entries());
+        var i = 0;
+        var s = priceArr.size();
+        if (s == 0){
+            return null;
+        };
+        var priceFloat  = Buffer.Buffer2<Float>(s);
+        while (i < s) {
+            priceFloat.add(Float.fromInt(priceArr[i].1));
+            i += 1;
+        };
+        var priceArrFloat = Buffer.toArray(priceFloat);
+        return Analytics.mode(priceArrFloat);
+    };
+
+    public func getStandardDeviation(): async ?Float{
+        var priceArr = Iter.toArray(tokenCurrentPrices.entries());
+        var i = 0;
+        var s = priceArr.size();
+        if (s == 0){
+            return null;
+        };
+        var priceFloat  = Buffer.Buffer2<Float>(s);
+        while (i < s) {
+            priceFloat.add(Float.fromInt(priceArr[i].1));
+            i += 1;
+        };
+        var priceArrFloat = Buffer.toArray(priceFloat);
+        return Analytics.sdeviation(priceArrFloat);
+    };
+
+    public func highestEverSale(): async [Nat]{
+        let highestSaleKeys = tokenHighestSales.keys();
+        var maxKey = 0;
+        var maxPrice = 0;
+        for (key in highestSaleKeys){
+            let thisHighestSale = Option.get(tokenHighestSales.get(key), 0);
+            if (thisHighestSale > maxPrice){
+                maxKey := key;
+                maxPrice := thisHighestSale;
+            };
+        };
+        Debug.print("goodbye");
+        return [maxKey, maxPrice]; 
+    };
+
+    public func getSalesProfile(tokenId: Nat): async [(Int, Nat)]{
+        let allSales = tokenHistoricalSales.get(tokenId);
+        switch allSales {
+            case null {
+                return [];
+            };
+            case (?arr){
+                return arr;
+            };
+        };
+        return [];
+    };
+
+    public func getHolderProfile(tokenId: Nat): async [(Int, Principal)]{
+        let allHolders = tokenHistoricalHolders.get(tokenId);
+        switch allHolders {
+            case null {
+                return [];
+            };
+            case (?arr){
+                return arr;
+            };
+        };
+        return [];
+    };
+
+    public func getTokenProfile(tokenId: Nat): async [Text]{
+        let allHolders = Option.get(tokenHistoricalHolders.get(tokenId), []);
+        let currentHolder = switch (allHolders.size()){
+            case 0 {""};
+            case _ {
+                Principal.toText(allHolders[allHolders.size() - 1].1);
+            };
+        };
+        
+        let lastSale = Nat.toText(Option.get(tokenLastSales.get(tokenId), 0));
+        let maxSale = Nat.toText(Option.get(tokenHighestSales.get(tokenId), 0));
+        return [lastSale, maxSale, currentHolder];
+    };
+
+    public func nextSalePredictor(tokenId: Nat): async ?Float{
+        var saleArr = Option.get(tokenHistoricalPrices.get(tokenId), []);
+        var i = 0;
+        var s = saleArr.size();
+        if (s == 0){
+            return null;
+        };
+        var saleFloat  = Buffer.Buffer2<(Float)>(s);
+        while (i < s) {
+            switch (saleArr[i].1){
+                case null {};
+                case (?nat){
+                    saleFloat.add(Float.fromInt(nat));
+                };
+            };
+            
+            i += 1;
+        };
+        var saleArrFloat = Buffer.toArray(saleFloat);
+        return Analytics.predict_next(saleArrFloat, 0.50);
     };
     
 
