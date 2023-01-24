@@ -604,6 +604,78 @@ actor class Landing(_owner: Principal) = this{
         };
     };
 
+    public func averageHoldingTime(collName: Text, tokenId: Nat): async ?Float{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return null;
+        }
+        else {
+            let act = actor(canisterId):actor {getAverageHoldingTime: (Nat) -> async (?Float)};
+            let aht = await act.getAverageHoldingTime(tokenId);
+            return aht;
+        };
+    };
+
+    public func medianHoldingTime(collName: Text, tokenId: Nat): async ?Float{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return null;
+        }
+        else {
+            let act = actor(canisterId):actor {getMedianHoldingTime: (Nat) -> async (?Float)};
+            let meht = await act.getMedianHoldingTime(tokenId);
+            return meht;
+        };
+    };
+
+    public func modalHoldingTime(collName: Text, tokenId: Nat): async ?Float{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return null;
+        }
+        else {
+            let act = actor(canisterId):actor {getModalHoldingTime: (Nat) -> async (?Float)};
+            let moht = await act.getModalHoldingTime(tokenId);
+            return moht;
+        };
+    };
+
+    public func getPastHolders(collName: Text, tokenId: Nat): async [Principal]{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return [];
+        }
+        else {
+            let act = actor(canisterId):actor {getPastHolders: (Nat) -> async ([Principal])};
+            let ph = await act.getPastHolders(tokenId);
+            return ph;
+        };
+    };
+
+    public func nextHoldingTimePredictor(collName: Text, tokenId: Nat): async ?Float{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return null;
+        }
+        else {
+            let act = actor(canisterId):actor {getNextHoldingTimePredictor: (Nat) -> async (?Float)};
+            let nhtp = await act.getNextHoldingTimePredictor(tokenId);
+            return nhtp;
+        };
+    };
+
+    public func mostLikelyBuyers(collName: Text): async [Principal]{
+        let canisterId = Option.get(analyticsCanisters.get(collName), "None");
+        if (canisterId == "None"){
+            return [];
+        }
+        else {
+            let act = actor(canisterId):actor {getMostLikelyBuyers: () -> async ([Principal])};
+            let mlb = await act.getMostLikelyBuyers();
+            return mlb;
+        };
+    };
+
     public func getFloor(collName: Text): async Nat {
         let canisterId = Option.get(analyticsCanisters.get(collName), "None");
         if (canisterId == "None"){

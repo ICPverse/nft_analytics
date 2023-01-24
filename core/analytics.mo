@@ -9,10 +9,12 @@ import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Buffer "../types/Buffer2";
 import Time "mo:base/Time";
+import Text "mo:base/Text";
 import Debug "mo:base/Debug";
 import Iter "mo:base/Iter";
 import T "../types/dip721_types";
 import Analytics "../types/Analytics";
+import Prelude "mo:base/Prelude";
 
 actor class IVAC721(_name : Text, _symbol : Text) {
     private stable var tokenPk : Nat = 0;
@@ -852,6 +854,152 @@ actor class IVAC721(_name : Text, _symbol : Text) {
         };
         var saleArrFloat = Buffer.toArray(saleFloat);
         return Analytics.predict_next(saleArrFloat, 0.50);
+    };
+
+    public func getAverageHoldingTime(tokenId: Nat): async ?Float{
+        var holderArr = Option.get(tokenHistoricalHolders.get(tokenId), []);
+        let size = holderArr.size();
+        if (size == 1 or size == 0){
+            return null;
+        };
+        var i = 1;
+        
+        var timeFloat = Buffer.Buffer2<(Float)>(size);
+        while (i < size){
+            var thisTimestamp = holderArr[i].0;
+            var prevTimestamp = holderArr[i - 1].0;
+            var el = thisTimestamp - prevTimestamp;
+            timeFloat.add(Float.fromInt(el));
+            
+            i += 1;
+        };
+        var timeArray = Buffer.toArray(timeFloat);
+        return Analytics.mean(timeArray);
+    };
+
+    public func getMedianHoldingTime(tokenId: Nat): async ?Float{
+        var holderArr = Option.get(tokenHistoricalHolders.get(tokenId), []);
+        let size = holderArr.size();
+        if (size == 1 or size == 0){
+            return null;
+        };
+        var i = 1;
+        
+        var timeFloat = Buffer.Buffer2<(Float)>(size);
+        while (i < size){
+            var thisTimestamp = holderArr[i].0;
+            var prevTimestamp = holderArr[i - 1].0;
+            var el = thisTimestamp - prevTimestamp;
+            timeFloat.add(Float.fromInt(el));
+            
+            i += 1;
+        };
+        var timeArray = Buffer.toArray(timeFloat);
+        return Analytics.median(timeArray);
+    };
+
+    public func getModalHoldingTime(tokenId: Nat): async ?Float{
+        var holderArr = Option.get(tokenHistoricalHolders.get(tokenId), []);
+        let size = holderArr.size();
+        if (size == 1 or size == 0){
+            return null;
+        };
+        var i = 1;
+        
+        var timeFloat = Buffer.Buffer2<(Float)>(size);
+        while (i < size){
+            var thisTimestamp = holderArr[i].0;
+            var prevTimestamp = holderArr[i - 1].0;
+            var el = thisTimestamp - prevTimestamp;
+            timeFloat.add(Float.fromInt(el));
+            
+            i += 1;
+        };
+        var timeArray = Buffer.toArray(timeFloat);
+        return Analytics.mode(timeArray);
+    };
+
+    public func getPastHolders(tokenId: Nat): async [Principal]{
+        var holderArr = Option.get(tokenHistoricalHolders.get(tokenId), []);
+        let size = holderArr.size();
+        if (size == 0){
+            return [];
+        };
+        var i = 0;
+        
+        var holderBuff = Buffer.Buffer2<(Principal)>(size);
+        while (i < size){
+            var holder = holderArr[i].1;
+            
+            holderBuff.add(holder);
+            
+            i += 1;
+        };
+        return Buffer.toArray(holderBuff);
+        
+    };
+
+    public func getNextHoldingTimePredictor(tokenId: Nat): async ?Float{
+        var holderArr = Option.get(tokenHistoricalHolders.get(tokenId), []);
+        let size = holderArr.size();
+        if (size == 1 or size == 0){
+            return null;
+        };
+        var i = 1;
+        
+        var timeFloat = Buffer.Buffer2<(Float)>(size);
+        while (i < size){
+            var thisTimestamp = holderArr[i].0;
+            var prevTimestamp = holderArr[i - 1].0;
+            var el = thisTimestamp - prevTimestamp;
+            timeFloat.add(Float.fromInt(el));
+            
+            i += 1;
+        };
+        var timeArray = Buffer.toArray(timeFloat);
+        return Analytics.predict_next(timeArray, 0.50);
+    };
+
+    public func getMostLikelyBuyers(): async [Principal]{
+        var holderBuff = Buffer.Buffer2<(Text)>(1);
+        var uniqueHolderBuff = Buffer.Buffer2<(Text)>(1);
+        for (key in tokenHistoricalHolders.keys()){
+            var holderArr = Option.get(tokenHistoricalHolders.get(key), []);
+            var i = 0;
+            var size = holderArr.size();
+            
+            while (i < size){
+                var holder = holderArr[i].1;
+                
+                holderBuff.add(Principal.toText(holder));
+                if (not Buffer.contains<Text>(uniqueHolderBuff, Principal.toText(holder), Text.equal)){
+                    uniqueHolderBuff.add(Principal.toText(holder));
+                };
+                
+                i += 1;
+            };
+
+        };
+        var k = 0;
+        var net_occurences = 0;
+        var occurenceBuff = Buffer.Buffer2<(Nat)>(uniqueHolderBuff.size());
+        while (k < uniqueHolderBuff.size()){
+            var occurences = Buffer.occurences(holderBuff.clone(), holderBuff.clone().get(k) ,Text.equal); 
+            occurenceBuff.add(occurences);
+            net_occurences += occurences;
+            k += 1;
+        };
+        k := 0;
+        var resultBuff = Buffer.Buffer2<(Principal)>(5);
+        while (k < occurenceBuff.size()){
+            if (occurenceBuff.get(k) * 10 >= net_occurences){
+                resultBuff.add(Principal.fromText(uniqueHolderBuff.get(k)));
+            };
+            k += 1;
+        };
+        return Buffer.toArray(resultBuff);
+        
+        
     };
     
 

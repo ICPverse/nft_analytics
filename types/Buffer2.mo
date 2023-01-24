@@ -557,6 +557,17 @@ module {
     false;
   };
 
+  public func occurences<X>(buffer : Buffer2<X>, element : X, equal : (X, X) -> Bool) : Nat {
+    var occ = 0;
+    for (current in buffer.vals()) {
+      if (equal(current, element)) {
+        occ += 1;
+      };
+    };
+
+    return occ;
+  };
+
   
   public func clone<X>(buffer : Buffer2<X>) : Buffer2<X> {
     let newBuffer = Buffer2<X>(buffer.capacity());
