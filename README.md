@@ -4,11 +4,11 @@ The supplementary analytics canister that can be used to access NFT Analytics ir
 
 New Functionality Added:
 
-getMedianPrice 
-getModalPrice 
-getPriceDeviation 
-getSalesProfile 
-getHolderProfile 
+getMedianPrice  
+getModalPrice  
+getPriceDeviation   
+getSalesProfile  
+getHolderProfile  
 getTokenProfile 
 getHighestEverSale
 nextSalePredictor
